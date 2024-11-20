@@ -1,0 +1,35 @@
+---
+- name: create mysql user with wordpress db
+  become: true
+  hosts: database
+  tasks:
+    - name: remove anonymous user account for localhost
+      community.mysql.mysql_user:
+        name: ''
+        host: localhost
+        state: absent
+        login_unix_socket: /run/mysqld/mysqld.sock
+
+    - name: creating user mysql
+      community.mysql.mysql_user:
+        name: wordpress
+        password: wpadmin123
+        priv: '*.*:ALL,GRANT'
+        state: present
+
+    - name: creating wordpress database
+      community.mysql.mysql_db:
+        name: wordpress
+        state: present
+
+    - name: Enable remote login to mysql
+      lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: ^bind-address
+        line: bind-address = 0.0.0.0
+      notify: [Restart mysql]
+  handlers:
+    - name: Restart mysql
+      service:
+        name: mysql
+        state: restarted
