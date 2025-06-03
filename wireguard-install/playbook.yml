@@ -1,0 +1,53 @@
+- name: Install Wireguard client
+  hosts: wg-client
+  become: true
+
+  vars:
+    wg_interface: wg0
+    wg_conf_dir: /etc/wireguard
+    wg_package: wireguard
+    wg_tools_package: wireguard-tools
+
+  tasks:
+    - name: Install Wireguard dependencies
+      apt:
+        name:
+        - "{{ wg_package }}"
+        - "{{ wg_tools_package }}"
+        state: present
+    
+    - name: Ensure Wiureguard config directory exists
+      file:
+        path: "{{ wg_conf_dir }}"
+        state: directory
+        mode: '0755'
+    
+    - name: Generate private key (if not exists)
+      command: wg genkey
+      register: wg_private_key
+      changed_when: false
+      when: wg_private_key is not defined
+    
+    - name: Save private key to file
+      copy:
+        dest: "{{ wg_conf_dir }}/privatekey" 
+        content: "{{ wg_private_key.stdout }}"
+        mode: '600'
+      when: wg_private_key is defined
+    
+    - name: Generate public key from private key
+      command: bash -c "echo '{{ wg_private_key.stdout }}' | wg pubkey"
+      register: wg_public_key
+      when: wg_private_key is defined
+
+    - name: Output generated keys
+      debug:
+        msg:
+          - "Private Key: {{ wg_private_key.stdout }}"
+          - "Public Key: {{ wg_public_key.stdout }}"
+
+    - name: Enable WireGuard service (manual start later)
+      systemd:
+        name: wg-quick@{{ wg_interface }}
+        enabled: yes
+        state: stopped

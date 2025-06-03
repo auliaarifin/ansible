@@ -1,0 +1,22 @@
+- name: Install Wireguard client
+  hosts: wg-client
+  become: true
+
+  vars:
+    wg_interface: wg0
+    wg_conf_dir: /etc/wireguard
+    wg_package: wireguard
+    wg_tools_package: wireguard-tools
+
+  tasks:
+    - name: Deploy WireGuard configuration
+      copy:
+        src: ./wg0.conf
+        dest: /etc/wireguard/wg0.conf
+        owner: root
+        group: root
+        mode: '0600'
+    - name: Start WireGuard
+      systemd:
+        name: wg-quick@wg0
+        state: started
