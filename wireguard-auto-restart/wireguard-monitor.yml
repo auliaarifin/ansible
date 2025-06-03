@@ -1,0 +1,40 @@
+---
+- name: Deploy WireGuard auto-restart monitor
+  hosts: wg-client
+  become: true
+
+  vars:
+    wg_interface: wg0
+    server_ip: 172.16.0.1
+    script_path: /usr/local/bin/wg-auto-restart.sh
+    log_path: /var/log/wg-monitor.log
+
+  tasks:
+    - name: Create WireGuard monitor script
+      copy:
+        dest: "{{ script_path }}"
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          WG_INTERFACE="{{ wg_interface }}"
+          SERVER_IP="{{ server_ip }}"
+          PING_COUNT=3
+          LOGFILE="{{ log_path }}"
+
+          ping -c $PING_COUNT -W 3 $SERVER_IP > /dev/null
+
+          if [ $? -ne 0 ]; then
+              echo "$(date): Connection to $SERVER_IP failed. Restarting $WG_INTERFACE..." | tee -a $LOGFILE
+              wg-quick down $WG_INTERFACE
+              sleep 2
+              wg-quick up $WG_INTERFACE
+          else
+              echo "$(date): Connection to $SERVER_IP OK." >> $LOGFILE
+          fi
+
+    - name: Add cron job to run the script every 5 minutes
+      cron:
+        name: "Check and restart WireGuard if disconnected"
+        user: root
+        job: "{{ script_path }}"
+        minute: "*/5"
